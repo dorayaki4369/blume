@@ -176,27 +176,29 @@ const loadFonts = (fonts: OgGoogleFont[]): Promise<FontSubset[]> => {
 };
 
 /**
- * The code points Takumi's built-in Geist draws: whitespace, printable ASCII,
- * Latin-1 except `µ`, a few Latin extras French needs, and the typographic
- * punctuation English copy leans on. Probed against the renderer, and
- * `og-card.test.ts` renders every one, so a Takumi upgrade that drops a glyph
- * fails there instead of shipping tofu.
+ * The code points Takumi's built-in Geist draws: whitespace (not the vertical
+ * tab or the line and paragraph separators, which draw as missing glyphs),
+ * printable ASCII, Latin-1 except `µ`, a few Latin extras French needs, and
+ * the typographic punctuation English copy leans on. `Ÿ` is left out: Geist
+ * has it, but a registered font takes the glyph over and may lack it. Probed
+ * against the renderer, and `og-card.test.ts` renders every one, so a Takumi
+ * upgrade that drops a glyph fails there instead of shipping tofu.
  */
 export const BUILT_IN_GLYPHS: [number, number][] = [
-  [0x09, 0x0d],
+  [0x09, 0x0a],
+  [0x0c, 0x0d],
   [0x20, 0x7e],
   [0xa0, 0xb4],
   [0xb6, 0xff],
   [0x1_31, 0x1_31],
   [0x1_52, 0x1_53],
-  [0x1_78, 0x1_78],
   [0x20_00, 0x20_0f],
   [0x20_13, 0x20_14],
   [0x20_18, 0x20_1a],
   [0x20_1c, 0x20_1e],
   [0x20_20, 0x20_22],
   [0x20_26, 0x20_26],
-  [0x20_28, 0x20_30],
+  [0x20_2a, 0x20_30],
   [0x20_32, 0x20_33],
   [0x20_39, 0x20_3a],
   [0x20_44, 0x20_44],
@@ -218,8 +220,10 @@ const drawnWithoutFonts = (codePoint: number): boolean =>
 
 /** Whether `subset` claims `codePoint` (a subset without ranges claims all). */
 const subsetClaims = (subset: FontSubset, codePoint: number): boolean =>
-  subset.ranges.length === 0 ||
-  subset.ranges.some(([from, to]) => codePoint >= from && codePoint <= to);
+  subset.unicodeRange.length === 0 ||
+  subset.unicodeRange.some(
+    ([from, to]) => codePoint >= from && codePoint <= to
+  );
 
 /** `family`'s subsets that claim any of `codePoints`. */
 const familySubsets = (
@@ -229,7 +233,7 @@ const familySubsets = (
 ): FontSubset[] =>
   subsets.filter(
     (subset) =>
-      subset.subsetOf === family &&
+      subset.name === family &&
       codePoints.some((codePoint) => subsetClaims(subset, codePoint))
   );
 
@@ -268,7 +272,7 @@ const fallbackSubsets = async (
   }
   const subsets = await loadFonts(fallbacks);
   const needed: FontSubset[] = [];
-  for (const family of new Set(subsets.map((subset) => subset.subsetOf))) {
+  for (const family of new Set(subsets.map((subset) => subset.name))) {
     const matching = familySubsets(subsets, family, missing);
     needed.push(...matching);
     missing = missing.filter(
